@@ -1,31 +1,65 @@
 # depslib dependency file v1.0
-1641681515 source:c:\users\axelh\desktop\3d_app\main.cpp
+1665681356 source:c:\users\axelh\desktop\3d_app\main.cpp
 	<chrono>
 	"M_matrices.h"
 	"Color_picker.h"
 	<Windows.h>
 	<conio.h>
+	<string>
 
-1641381844 c:\users\axelh\desktop\3d_app\m_matrices.h
+1641381842 c:\users\axelh\desktop\3d_app\m_matrices.h
 	<iostream>
 	<cmath>
 	<vector>
 	<stdlib.h>
 
-1641381844 source:c:\users\axelh\desktop\3d_app\m_matrices.cpp
+1648205266 source:c:\users\axelh\desktop\3d_app\m_matrices.cpp
 	<iostream>
 	"M_matrices.h"
 	<cmath>
 	<vector>
 	<stdlib.h>
 
-1641472970 source:c:\users\axelh\desktop\3d_app\color_picker.cpp
+1641472968 source:c:\users\axelh\desktop\3d_app\color_picker.cpp
 	<string>
 	<iostream>
 	<stdlib.h>
 	<windows.h>
 
-1641469370 c:\users\axelh\desktop\3d_app\color_picker.h
+1641472968 c:\users\axelh\desktop\3d_app\color_picker.h
+	<string>
+	<iostream>
+	<stdlib.h>
+	<windows.h>
+
+1641469368 source:c:\users\axelh\documents\3d_app\color_picker.cpp
+	<string>
+	<iostream>
+	<stdlib.h>
+	<windows.h>
+
+1648201666 source:c:\users\axelh\documents\3d_app\m_matrices.cpp
+	<iostream>
+	"M_matrices.h"
+	<cmath>
+	<vector>
+	<stdlib.h>
+
+1641378242 c:\users\axelh\documents\3d_app\m_matrices.h
+	<iostream>
+	<cmath>
+	<vector>
+	<stdlib.h>
+
+1681992362 source:c:\users\axelh\documents\3d_app\main.cpp
+	<chrono>
+	"M_matrices.h"
+	"Color_picker.h"
+	<Windows.h>
+	<conio.h>
+	<string>
+
+1641469368 c:\users\axelh\documents\3d_app\color_picker.h
 	<string>
 	<iostream>
 	<stdlib.h>

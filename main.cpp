@@ -4,27 +4,34 @@
 #include "Color_picker.h"
 #include <Windows.h>
 #include <conio.h>
+#include <string>
 
-///probleme avec les axes : axes inversÃ©s
 using namespace std;
 
 struct Point;
 struct Arrete;
 struct Object;
 struct Environnement;
+struct Camera;
 Arrete point_to_arrrete(Point p);
 Point arrete_to_point(Arrete a);
 bool key_pressed(Environnement &E);
 
-const size_t LIGNES(40), COL(50);//taille de l'environnement
+const size_t LIGNES(41), COL(101);
 
 struct Point
 {
     Point(){}
     Point(double x, double y, double z): m_x(x), m_y(y), m_z(z){}
+    //Point(point): m_x(point.m_x), m_y(point.m_y), m_z(point.m_z){}
     double m_x;
     double m_y;
     double m_z;
+
+    double norme()
+    {
+        return sqrt(pow(this->m_x,2)+pow(this->m_y,2)+pow(this->m_z,2));
+    }
     void set_coord(double x, double y, double z)
     {
         m_x = x;
@@ -36,6 +43,12 @@ struct Point
         m_x = coord[0];
         m_y = coord[1];
         m_z = coord[2];
+    }
+    M_matrices to_matrice()
+    {
+        vector<double> mat_vect({m_x, m_y, m_z});
+        M_matrices mat(3,1,mat_vect);
+        return mat;
     }
     void operator=(vector<double> coord)
     {
@@ -57,8 +70,38 @@ struct Point
         v.push_back(m_z);
         return v;
     }
+    double distance_to_point(Point B)
+    {
+        return sqrt(pow(B.m_x-this->m_x,2)+pow(B.m_y-this->m_y,2)+pow(B.m_z-this->m_z,2));
+    }
 };
 
+Point matrice_to_point(M_matrices mat)
+{
+    if (mat.get_matrice_vect().size() == 3)
+        return Point(mat.get_matrice_vect()[0], mat.get_matrice_vect()[1], mat.get_matrice_vect()[2]);
+    else
+        cerr<<"matrice_to_point : size_error"<<endl;
+        return Point(0,0,0);
+}
+
+Point operator*(Point a, double x)
+{
+    Point S;
+    S.m_x = a.m_x *x;
+    S.m_y = a.m_y *x;
+    S.m_z = a.m_z *x;
+    return S;
+}
+
+Point operator/(Point a, double x)
+{
+    Point S;
+    S.m_x = a.m_x /x;
+    S.m_y = a.m_y /x;
+    S.m_z = a.m_z /x;
+    return S;
+}
 
 Point operator+(Point a, Point b)
 {
@@ -75,14 +118,6 @@ Point operator-(Point a, Point b)
     S.m_x = a.m_x - b.m_x;
     S.m_y = a.m_y - b.m_y;
     S.m_z = a.m_z - b.m_z;
-    return S;
-}
-Point operator*(Point a, double b)
-{
-    Point S;
-    S.m_x = a.m_x * b;
-    S.m_y = a.m_y * b;
-    S.m_z = a.m_z * b;
     return S;
 }
 
@@ -136,10 +171,12 @@ Arrete operator/(Arrete a, double b)
 }
 
 
-
 struct Object
 {
     Object(): m_rot_x(0), m_rot_y(0), m_rot_z(0), m_origine(Point(0,0,0)), m_definig_points({}), m_arretes({}){}
+    Object(Point normale_plan, Point position) : m_name("Camera"), m_rot_x(0), m_rot_y(0), m_rot_z(0),
+                                    m_origine(Point(0,0,0)), m_direction({normale_plan}), m_arretes({}),
+                                    m_definig_points({position, Point(1,0,0), Point(0,1,0), Point(0,0,-1)}){}
     double m_rot_x;
     double m_rot_y;
     double m_rot_z;
@@ -149,6 +186,7 @@ struct Object
     M_matrices m_matrice_rot = get_matrice_identite(3,3);
     Point m_origine;
     vector<Point> m_definig_points;
+    Point m_direction;
     vector<Arrete> m_arretes;
     string m_name;
 
@@ -158,6 +196,7 @@ struct Object
         m_definig_points.clear();
         m_length = length;
         m_pas = pas;
+        Point p = Point(0,0,0);
 
         for(int i = 0; i*pas<length; i++)
         {
@@ -175,7 +214,7 @@ struct Object
         m_definig_points.push_back(Point(rayon,rayon,0));
         m_definig_points.push_back(Point(rayon,-rayon,0));
 
-        for(int i = 0; i*pas<rayon; i++)//de 0 ï¿½ 2*rayon
+        for(int i = 0; i*pas<rayon; i++)//de 0 à 2*rayon
         {
             //cout<<"mdr : "<<i<<endl;
             double x_pos = sqrt(pow(rayon,2)-pow(i*pas,2))+rayon;
@@ -247,8 +286,8 @@ struct Object
         a = point_to_arrrete(p - m_definig_points[m_definig_points.size()-1]);
         m_definig_points.push_back(p);
         m_arretes.push_back(a);
-        //derniï¿½res arrï¿½tes
-        a = point_to_arrrete(m_definig_points[3]);//1 ï¿½ 4
+        //dernières arrètes
+        a = point_to_arrrete(m_definig_points[3]);//1 à 4
         m_arretes.push_back(a);
         for(size_t j(1) ; j*pas<length; j++)
             {
@@ -257,7 +296,7 @@ struct Object
                 Arrete v = a *(j*pas);///peut manquer une arrete
                 m_definig_points.push_back(o+arrete_to_point(v));
             }
-        a = point_to_arrrete(m_definig_points[5]);//1 ï¿½ 6
+        a = point_to_arrrete(m_definig_points[5]);//1 à 6
         m_arretes.push_back(a);
         for(size_t j(1) ; j*pas<length; j++)
             {
@@ -266,7 +305,7 @@ struct Object
                 Arrete v = a *(j*pas);///peut manquer une arrete
                 m_definig_points.push_back(o+arrete_to_point(v));
             }
-        a = point_to_arrrete(m_definig_points[6] - m_definig_points[1]);//2 ï¿½ 7
+        a = point_to_arrrete(m_definig_points[6] - m_definig_points[1]);//2 à 7
         m_arretes.push_back(a);
         for(size_t j(1) ; j*pas<length; j++)
             {
@@ -275,7 +314,7 @@ struct Object
                 Arrete v = a *(j*pas);///peut manquer une arrete
                 m_definig_points.push_back(o+arrete_to_point(v));
             }
-        a = point_to_arrrete(m_definig_points[7] - m_definig_points[2]);//3 ï¿½ 8
+        a = point_to_arrrete(m_definig_points[7] - m_definig_points[2]);//3 à 8
         m_arretes.push_back(a);
         for(size_t j(1) ; j*pas<length; j++)
             {
@@ -284,7 +323,7 @@ struct Object
                 Arrete v = a *(j*pas);///peut manquer une arrete
                 m_definig_points.push_back(o+arrete_to_point(v));
             }
-        a = point_to_arrrete(m_definig_points[7] - m_definig_points[4]);//5 ï¿½ 8
+        a = point_to_arrrete(m_definig_points[7] - m_definig_points[4]);//5 à 8
         m_arretes.push_back(a);
         for(size_t j(1) ; j*pas<length; j++)
             {
@@ -306,8 +345,10 @@ struct Object
                 //cout<<i<<endl;
             }
         }
+        //cout<<"ok"<<endl;
 
         set_centered();
+        //cout<<"ok2"<<endl;
     }
     void set_centered()
     {
@@ -334,6 +375,7 @@ struct Object
             rotate_point(m_definig_points[i]);
             //cout<<i<<" : "<<m_definig_points[i].m_x<<","<<m_definig_points[i].m_y<<","<<m_definig_points[i].m_z<<endl;
         }
+        rotate_point(m_direction);
         set_center();
     }
     void translate_point(Point &p, Point translation)
@@ -346,11 +388,20 @@ struct Object
             cerr<<"translation impossible car trop de coord."<<endl;
         else
         {
-            for(size_t i(0); i<m_definig_points.size(); i++)
+            if (m_name == "Camera")
             {
                 Point temp = Point(translation[0], translation[1], translation[2]);
-                translate_point(m_definig_points[i], temp);
+                translate_point(m_definig_points[0], temp);
             }
+            else
+            {
+                for(size_t i(0); i<m_definig_points.size(); i++)
+                {
+                    Point temp = Point(translation[0], translation[1], translation[2]);
+                    translate_point(m_definig_points[i], temp);
+                }
+            }
+
         }
     }
     void rotate_x(double angle_rad)
@@ -391,70 +442,153 @@ struct Object
 
 };
 
+struct Camera : Object
+{
+    //constructeurs
+    //Camera():m_vect_normal(Point(0,0,1)), m_origine_plan(Point()), m_size_x(-1), m_size_y(-1){}
+    //Camera(double Ox,double Oy,double Oz, Point origine_plan) : m_vect_normal({Ox,Oy,Oz}),
+           // m_origine_plan(origine_plan), m_size_x(-1), m_size_y(-1){}
+    Camera(Point plan, Point origine_plan) : Object(plan, origine_plan), m_origine_plan(origine_plan),
+            m_vect_normal(plan), m_size_x(-1), m_size_y(-1), camera_point({10,0,0}){}
+    //attributs
+    Point m_vect_normal;//vecteur normal
+    Point m_origine_plan;
+    double m_size_x;
+    double m_size_y;
+    Point camera_point;
+    //m_definig_points.push_back(vect_e1);
+    //this.m_definig_points.push_back(vect_e2);
+
+    //méthodes
+
+    Point transformation_plan(Point point_R3)
+    {
+        m_vect_normal = m_direction;
+        m_origine_plan = m_definig_points[0];
+        //cout<<m_definig_points[0].m_x<<","<< m_definig_points[0].m_y<<","<< m_definig_points[0].m_z<<endl;
+        camera_point = m_definig_points[0]-((m_vect_normal/m_vect_normal.norme())*10);//changé le - par un +
+        double d = -(m_vect_normal.m_x*m_origine_plan.m_x) - m_vect_normal.m_y*m_origine_plan.m_y - m_vect_normal.m_z*m_origine_plan.m_z;
+        Point point_plan_ortho_A;
+        Point point_plan_ortho_B;
+        double k = (m_vect_normal.m_x*point_R3.m_x+m_vect_normal.m_y*point_R3.m_y+m_vect_normal.m_z*point_R3.m_z+d)
+            /(pow(m_vect_normal.m_x,2)+pow(m_vect_normal.m_y,2)+pow(m_vect_normal.m_z,2));
+        double k_2 = (m_vect_normal.m_x*camera_point.m_x+m_vect_normal.m_y*camera_point.m_y+m_vect_normal.m_z*camera_point.m_z+d)
+            /(pow(m_vect_normal.m_x,2)+pow(m_vect_normal.m_y,2)+pow(m_vect_normal.m_z,2));
+
+        //Point A = caméra, point B = objet
+        Point vect_AB = point_R3-camera_point;
+        double dist_AB = vect_AB.norme();
+        point_plan_ortho_B.set_coord(point_R3.m_x-k*m_vect_normal.m_x, point_R3.m_y-k*m_vect_normal.m_y, point_R3.m_z-k*m_vect_normal.m_z);
+        point_plan_ortho_A.set_coord(camera_point.m_x-k_2*m_vect_normal.m_x, camera_point.m_y-k_2*m_vect_normal.m_y, camera_point.m_z-k_2*m_vect_normal.m_z);
+        double dist_A = point_plan_ortho_A.distance_to_point(camera_point);
+        double dist_B = point_plan_ortho_B.distance_to_point(point_R3);
+        Point vect_Aprime_Bprime = point_plan_ortho_B-point_plan_ortho_A;
+        Point vect_unit_Aprime_Bprime = vect_Aprime_Bprime/vect_Aprime_Bprime.norme();
+        double dist_Aprime_inter = sqrt(pow(dist_AB,2)-pow(dist_A+dist_B,2))-sqrt(pow(dist_A*dist_AB/(dist_A+dist_B)-dist_AB,2)-pow(dist_A,2));
+
+
+
+        //Point A_B = point_plan_ortho_B - point_plan_ortho_A;
+        //double temp = (dist_A+dist_B)/dist_A;
+        //double dist_AX = A_B.norme()/temp;
+        //Point unit_A_B = A_B/A_B.norme();
+        Point point_plan = point_plan_ortho_B+(vect_unit_Aprime_Bprime*dist_Aprime_inter);
+        //pos_point_R3 - m*vect_directeur = pos_point_r2 // m>0
+        //double m = -((point_plan.m_x - point_R3.m_x) / m_vect_normal.m_x);
+        ///TROUVER EQUATION POUR M < 0 => point derrière caméra
+        /*Point vect_dist = point_plan-m_origine_plan;
+        double delta_dist = sqrt(pow(vect_dist.m_x,2)+pow(vect_dist.m_y,2)+pow(vect_dist.m_z,2));
+        M_matrices matrice_pass(3,3);
+        vector<double> vect_mat({m_definig_points[1].m_x,m_definig_points[1].m_y,m_definig_points[1].m_z,
+                                 m_definig_points[2].m_x,m_definig_points[2].m_y,m_definig_points[2].m_z,
+                                 m_vect_normal.m_x, m_vect_normal.m_y, m_vect_normal.m_z});
+        matrice_pass.set_matrice_vect(vect_mat);
+        M_matrices mat_point(3,1,{point_plan.m_x,point_plan.m_y,point_plan.m_z});
+        M_matrices mat_point_plan = matrice_pass.get_inverse()*mat_point;
+        vector<double> temp = mat_point_plan.get_matrice_vect();
+        point_plan.set_coord(temp);*/
+
+        double x = point_plan.m_x;
+        double y = point_plan.m_y;
+        double z = point_plan.m_z;
+        double u1 = m_definig_points[1].m_x;
+        double u2 = m_definig_points[1].m_y;
+        double u3 = m_definig_points[1].m_z;
+        double v1 = m_definig_points[2].m_x;
+        double v2 = m_definig_points[2].m_y;
+        double v3 = m_definig_points[2].m_z;
+        double w1 = m_definig_points[3].m_x;
+        double w2 = m_definig_points[3].m_y;
+        double w3 = m_definig_points[3].m_z;
+
+        vector<double> P_mat_vect({u1,v1,w1,u2,v2,w2,u3,v3,w3});
+        M_matrices P_mat(3,3,P_mat_vect);
+
+        M_matrices P_mat_inv(P_mat.get_inverse());
+        M_matrices mat_point_plan = P_mat_inv*point_plan.to_matrice();
+        Point point_cam_plan(matrice_to_point(mat_point_plan));
+        //double coeff_a =
+        //double coeff_b = (y*u1-u2*x)/(v2*u1-u2*v1);
+        //point_plan.set_coord(0, coeff_a, coeff_b);
+        /*double x1=0.;
+        double x2=1.;
+        double x3=0.;
+        double y1=0.;
+        double y2=0.;
+        double y3=1.;
+        double d1=m_definig_points[0].distance_to_point(point_plan);
+        double d2=m_definig_points[1].distance_to_point(point_plan);
+        double d3=m_definig_points[2].distance_to_point(point_plan);
+        vector<double> vect_mat_a = {2*(x3-x1),2*(y3-y1),2*(x3-x2),2*(y3-y2)};
+        double temp1 = pow(d1,2)-pow(d3,2)+pow(x3,2)-pow(x1,2)+pow(y3,2)-pow(y1,2);
+        double temp2 = pow(d2,2)-pow(d3,2)+pow(x3,2)-pow(x2,2)+pow(y3,2)-pow(y2,2);
+        vector<double> vect_mat_b = {temp1,temp2};
+        M_matrices mat_a(2,2,vect_mat_a);
+        M_matrices mat_b(2,1,vect_mat_b);
+        M_matrices mat_res(2,1);
+        mat_res = mat_a.get_inverse()*mat_b;
+        vector<double> temp = mat_res.get_matrice_vect();
+        point_plan.set_coord(temp);*/
+        /*if(m < 0 || delta_dist>200)//derrière la caméra ou hors du champ
+        {
+            return Point(0,0,0);
+        }
+        else
+        {
+            return point_plan;
+        }*/
+        if(camera_point.distance_to_point(point_R3)>m_definig_points[0].distance_to_point(point_R3))
+        {
+            return point_cam_plan;
+        }
+        else
+        {
+            return Point(1000,1000,1000);///a rechanger
+        }
+
+    }
+
+};
+
 struct Environnement
 {
-    Environnement():m_x_axis(0), m_y_axis(0), m_z_axis(0), m_x_vect(Point(1,0,0)), m_y_vect(Point(0,1,0)), m_z_vect(Point(0,0,1))
-    {
-    }
-    Environnement(double x_axis, double y_axis, double z_axis): m_x_axis(x_axis), m_y_axis(y_axis), m_z_axis(z_axis), m_x_vect(Point(1,0,0)), m_y_vect(Point(0,1,0)), m_z_vect(Point(0,0,1)){}
+    //Environnement():m_x_axis(0), m_y_axis(0), m_z_axis(0), m_cam(){}
+    Environnement(double x_axis, double y_axis, double z_axis): m_x_axis(x_axis), m_y_axis(y_axis), m_z_axis(z_axis),
+                    m_cam(Point(-1,0,0),Point(0,0,0)){}
     //static const size_t LIGNES=40, COL=50;
     char display_tab[LIGNES][COL];
     int display_tab_color[LIGNES][COL];
     int m_current_object_index = 0;
 
-    M_matrices m_matrice_rot = get_matrice_identite(3,3);
-    double m_x_axis;//coord des axes
+    bool is_camera_view = false;
+    double m_x_axis;
     double m_y_axis;
     double m_z_axis;
-    double m_length_axis;
-    double m_pas_axis;
-    Point m_x_vect, m_y_vect, m_z_vect;
-    vector<Point> axis_vect;
-    vector<Point> axis_vect_definig_points;
-    vector<Object> list_objects;
+    vector<Object*> list_objects;
     vector<int> list_objects_color;
     vector<Point> list_objects_coord;
+    Camera m_cam;
     //vector<string> COLor_pannel = {"bleu","rouge"};
-    void rotate_axis()
-    {
-        M_matrices x_coord(3,1), y_coord(3,1), z_coord(3,1);
-        x_coord.set_matrice_vect(m_x_vect.point_to_vector());
-        y_coord.set_matrice_vect(m_y_vect.point_to_vector());
-        z_coord.set_matrice_vect(m_z_vect.point_to_vector());
-        M_matrices temp_x = m_matrice_rot*x_coord;
-        M_matrices temp_y = m_matrice_rot*y_coord;
-        M_matrices temp_z = m_matrice_rot*z_coord;
-
-        m_x_vect.set_coord(temp_x.get_matrice_vect());
-        m_y_vect.set_coord(temp_y.get_matrice_vect());
-        m_z_vect.set_coord(temp_z.get_matrice_vect());
-    }
-    void rotate_x(double angle_rad)
-    {
-        vector<double> matrice_rot_x = {1,0,0,
-                                        0,cos(angle_rad),-sin(angle_rad),
-                                        0,sin(angle_rad),cos(angle_rad)};
-
-        m_matrice_rot.set_matrice_vect(matrice_rot_x);
-        rotate_axis();
-
-    }
-    void rotate_y(double angle_rad)
-    {
-        vector<double> matrice_rot_y = {cos(angle_rad),0,sin(angle_rad),
-                                        0,1,0,
-                                        -sin(angle_rad),0,cos(angle_rad)};
-        m_matrice_rot.set_matrice_vect(matrice_rot_y);
-        rotate_axis();
-    }
-    void rotate_z(double angle_rad)
-    {
-        vector<double> matrice_rot_z = {cos(angle_rad),-sin(angle_rad),0,
-                                        sin(angle_rad),cos(angle_rad) ,0,
-                                        0             ,0              ,1};
-        m_matrice_rot.set_matrice_vect(matrice_rot_z);
-        rotate_axis();
-    }
 
     void select_next_object()
     {
@@ -464,70 +598,37 @@ struct Environnement
             m_current_object_index++;
     }
 
-    void move_object(Point target)//dï¿½place l'objet courant dans l'environnement
+    void move_object(Point target)//déplace l'objet courant dans l'environnement
     {
         list_objects_coord[m_current_object_index] += target;
     }
 
     void clear_all()
     {
+        for (int i = 0; i<list_objects.size(); i++)
+        {
+            delete list_objects[i];
+        }
         list_objects.clear();
         list_objects_color.clear();
         list_objects_coord.clear();
     }
-    void add_object(Object item, Point coord, string color)
+    void add_object(Object *item, Point coord, string color)
     {
         list_objects.push_back(item);
         int color_int = transform_text_color(color);
         list_objects_color.push_back(color_int);
         list_objects_coord.push_back(coord);
     }
-    void make_axis(double pas, double length)
-    {
-        m_matrice_rot.set_nb_lignes_col(3,3);
-        m_length_axis = length;
-        m_pas_axis = pas;
-        axis_vect.push_back(m_x_vect);
-        axis_vect.push_back(m_y_vect);
-        axis_vect.push_back(m_z_vect);
-        Point o = Point(m_x_axis, m_y_axis, m_z_axis);
-        axis_vect_definig_points.push_back(o);//Point d'intersection des 3 axes
-        for(size_t i(0); i<axis_vect.size(); i++)
-        {
-            for(size_t j(1); j*pas<length; j++)
-            {
-                Point p;
-                p = axis_vect[i]*(j*pas);
-                axis_vect_definig_points.push_back(o+p);
-            }
-        }
-    }
-    void refresh_axis()
-    {
-        axis_vect_definig_points.clear();
-        axis_vect[0] = m_x_vect;
-        axis_vect[1] = m_y_vect;
-        axis_vect[2] = m_z_vect;
-        Point o = Point(m_x_axis, m_y_axis, m_z_axis);
-        axis_vect_definig_points.push_back(o);//Point d'intersection des 3 axes
-        for(size_t i(0); i<axis_vect.size(); i++)
-        {
-            for(size_t j(1); j*m_pas_axis<m_length_axis; j++)
-            {
-                Point p;
-                p = axis_vect[i]*(j*m_pas_axis);
-                axis_vect_definig_points.push_back(o+p);
-                //cout<<p.m_x<<" "<<p.m_y<<" "<<p.m_z<<endl;
-            }
-        }
-        cout<<m_x_vect.m_x<<" "<<m_x_vect.m_y<<" "<<m_x_vect.m_z<<endl;
-    }
-
-    void set_environnement_coord(double x_axis, double y_axis, double z_axis)
+    void set_environnement(double x_axis, double y_axis, double z_axis)
     {
         m_x_axis = x_axis;
         m_y_axis = y_axis;
         m_z_axis = z_axis;
+    }
+    Camera get_camera()
+    {
+        return m_cam;
     }
     void clear_display_tab()
     {
@@ -543,106 +644,123 @@ struct Environnement
     void set_display_tab()
     {
 
-        size_t m_l = LIGNES/2;
-        size_t m_c = COL/2;
-        clear_display_tab();
-        for(size_t i(0); i<list_objects.size(); i++)
+        int m_l = LIGNES/2+1;
+        int m_c = COL/2+1;
+        for (size_t u(0); u<LIGNES; u++)
         {
-            size_t nb_points = list_objects[i].m_definig_points.size();
-            vector<Point> list_points = list_objects[i].m_definig_points;
-            double length = list_objects[i].m_length;
-            int color = list_objects_color[i];
-
-            for(size_t j(0); j<nb_points; j++)
+            for(size_t v(0); v<COL; v++)
             {
-                double x = list_points[j].m_x + list_objects_coord[i].m_x + m_x_axis;
-                double y = list_points[j].m_y + list_objects_coord[i].m_y + m_y_axis;
-                double z = list_points[j].m_z + list_objects_coord[i].m_z + m_z_axis;
-                int r_y = round(y);
-                int r_z = round(z);
-                //int r_z_axis = round(m_z_axis);
-                //int r_y_axis = round(m_y_axis);
-                if(list_points[j].m_x >= -sqrt(pow(length,2)+pow(length,2)) && list_points[j].m_x < -sqrt(pow(length,2)+pow(length,2))/2)//marche pour la taille du cube
-                {
-                    if(display_tab[m_c+r_y][m_l-r_z] != '*' && display_tab[25+r_y][25-r_z] != '#' && display_tab[25+r_y][25-r_z] != '@')
-                    {
-                        display_tab[m_c+r_y][m_l-r_z] = '.';
-                        display_tab_color[m_c+r_y][m_l-r_z] = color;
-                    }
-                }
-                else if(list_points[j].m_x >= -sqrt(pow(length,2)+pow(length,2))/2 && list_points[j].m_x < 0)
-                {
-                    if(display_tab[m_c+r_y][m_l-r_z] != '#' && display_tab[25-r_z][25+r_y] != '@')
-                    {
-                        display_tab[m_c+r_y][m_l-r_z] = '*';
-                        display_tab_color[m_c+r_y][m_l-r_z] = color;
-                    }
-
-                }
-                else if(list_points[j].m_x >= 0 && list_points[j].m_x < sqrt(pow(length,2)+pow(length,2))/2)
-                {
-                    if(display_tab[m_c+r_y][m_l-r_z] != '@')
-                    {
-                        display_tab[m_c+r_y][m_l-r_z] = '#';
-                        display_tab_color[m_c+r_y][m_l-r_z] = color;
-                    }
-                }
-                else if(list_points[j].m_x >= sqrt(pow(length,2)+pow(length,2))/2 && list_points[j].m_x <= sqrt(pow(length,2)+pow(length,2)))
-                {
-                    display_tab[m_c+r_y][m_l-r_z] = '@';
-                    display_tab_color[m_c+r_y][m_l-r_z] = color;
-                }
-                else
-                {
-                    display_tab[m_c+r_y][m_l-r_z] = 49+j;
-                    display_tab_color[m_c+r_y][m_l-r_z] = color;
-                }
+                display_tab[u][v] = ' ';
+                display_tab_color[u][v] = 15;
             }
         }
-
-        Point p = axis_vect_definig_points[0];
-        int r_axis_y = round(p.m_y), r_axis_z = round(p.m_z);
-        display_tab[r_axis_y][r_axis_z] = 'O';
-        display_tab_color[r_axis_y][r_axis_z] = 13;//violet
-        for(size_t i(1); i<axis_vect_definig_points.size(); i++)/////////////Probleme
+        for(size_t i(0); i<list_objects.size(); i++)
         {
-            //cout<<"mdr"<<i<<endl;
-            p = axis_vect_definig_points[i];
-            r_axis_y = round(p.m_y);
-            r_axis_z = round(p.m_z);
-            if(i<=(axis_vect_definig_points.size()-1)/3)
+            if (list_objects[i]->m_name != "Camera")//ne pas afficher la caméra ^^
             {
-                display_tab_color[r_axis_y][r_axis_z] = 4;//rouge x
-                if(i == (axis_vect_definig_points.size()-1)/3)
-                    display_tab[r_axis_y][r_axis_z] = 'X';
-                else
-                    display_tab[r_axis_y][r_axis_z] = '%';
-            }
-            else if(i<=2*(axis_vect_definig_points.size()-1)/3)
-            {
-                display_tab_color[r_axis_y][r_axis_z] = 10;//vert y
-                if(i == 2*(axis_vect_definig_points.size()-1)/3)
-                    display_tab[r_axis_y][r_axis_z] = 'Y';
-                   // cout<<"ok"<<endl;
-                else
-                    display_tab[r_axis_y][r_axis_z] = '%';
-            }
-            else
-            {
-                display_tab_color[r_axis_y][r_axis_z] = 9;//bleu z
-                if(i == (axis_vect_definig_points.size()-1))
-                    display_tab[r_axis_y][r_axis_z] = 'Z';
-                else
-                    display_tab[r_axis_y][r_axis_z] = '%';
+                size_t nb_points = list_objects[i]->m_definig_points.size();
+                vector<Point> list_points = list_objects[i]->m_definig_points;
+                double length = list_objects[i]->m_length;
+                int color = list_objects_color[i];
+
+                for(size_t j(0); j<nb_points; j++)
+                {
+                    double x(0);
+                    double y(0);
+                    double z(0);
+                    if (is_camera_view)
+                    {
+                        x = list_points[j].m_x + list_objects_coord[i].m_x;
+                        y = list_points[j].m_y + list_objects_coord[i].m_y;
+                        z = list_points[j].m_z + list_objects_coord[i].m_z;
+                        Point temp(m_cam.transformation_plan(Point(x,y,z)));
+                        x = temp.m_x;
+                        y = temp.m_y;
+                        z = temp.m_z;
+                        //cout<<"JE PAAAASSSSEEE"<<Sendl;
+                    }
+                    else
+                    {
+                        x = list_points[j].m_x + list_objects_coord[i].m_x;
+                        y = list_points[j].m_y + list_objects_coord[i].m_y;
+                        z = list_points[j].m_z + list_objects_coord[i].m_z;
+                    }
+
+                    int r_y = round(y);
+                    int r_z = round(z);
+                    int r_z_axis = round(m_z_axis);
+                    int r_y_axis = round(m_y_axis);
+                    //cout<<"x: "<<r_x<<endl;
+                    //cout<<"y: "<<r_y<<endl;
+                    //cout<<"z: "<<r_z<<endl;
+                    //cout<<"m_c : "<<-m_c<<endl;
+                    //cout<<"m_l : "<<-m_l<<endl;
+
+
+                    ///revoir le concept
+                    //Camera cam_copy = get_camera();
+                    //if(r_z < m_c && r_z > -m_c && r_y < m_c && r_y > -m_l)//dans le tableau
+                    if(m_l+r_z+r_z_axis < LIGNES && m_c+r_y+r_y_axis < COL)
+                    {
+                        //cout<<"dans le tableau"<<endl;
+                        if(x >= -sqrt(pow(length,2)+pow(length,2)) && x < -sqrt(pow(length,2)+pow(length,2))/2)
+                        {
+                            if(display_tab[LIGNES-m_l-r_z-r_z_axis][COL-m_c-r_y-r_y_axis] != '*' && display_tab[LIGNES-m_l-r_z-r_z_axis][COL-m_c-r_y-r_y_axis] != '#' && display_tab[LIGNES-m_l-r_z-r_z_axis][COL-m_c-r_y-r_y_axis] != '@')
+
+                            {
+                                display_tab[LIGNES-m_l-r_z-r_z_axis][COL-m_c-r_y-r_y_axis] = '.';
+                                display_tab_color[LIGNES-m_l-r_z-r_z_axis][COL-m_c-r_y-r_y_axis] = color;
+                            }
+                        }
+                        else if(x >= -sqrt(pow(length,2)+pow(length,2))/2 && x < 0)
+                        {
+                            if(display_tab[LIGNES-m_l-r_z-r_z_axis][COL-m_c-r_y-r_y_axis] != '#' && display_tab[LIGNES-m_l-r_z-r_z_axis][COL-m_c-r_y-r_y_axis] != '@')
+                            {
+                                display_tab[LIGNES-m_l-r_z-r_z_axis][COL-m_c-r_y-r_y_axis] = '*';
+                                display_tab_color[LIGNES-m_l-r_z-r_z_axis][COL-m_c-r_y-r_y_axis] = color;
+                            }
+
+                        }
+                        else if(x >= 0 && x < sqrt(pow(length,2)+pow(length,2))/2)
+                        {
+                            if(display_tab[LIGNES-m_l-r_z-r_z_axis][COL-m_c-r_y-r_y_axis] != '@')
+                            {
+                                display_tab[LIGNES-m_l-r_z-r_z_axis][COL-m_c-r_y-r_y_axis] = '#';
+                                display_tab_color[LIGNES-m_l-r_z-r_z_axis][COL-m_c-r_y-r_y_axis] = color;
+                            }
+                        }
+                        else if(x >= sqrt(pow(length,2)+pow(length,2))/2 && x <= sqrt(pow(length,2)+pow(length,2)))
+                        {
+                            display_tab[LIGNES-m_l-r_z-r_z_axis][COL-m_c-r_y-r_y_axis] = '@';
+                            display_tab_color[LIGNES-m_l-r_z-r_z_axis][COL-m_c-r_y-r_y_axis] = color;
+                        }
+                        else
+                        {
+                            display_tab[LIGNES-m_l-r_z-r_z_axis][COL-m_c-r_y-r_y_axis] = 49+j;
+                            display_tab_color[LIGNES-m_l-r_z-r_z_axis][COL-m_c-r_y-r_y_axis] = color;
+                        }
+                   }
+
+                }
             }
         }
     }
     void display()
     {
+        string tableau_fini;
         system("CLS");
         set_display_tab();
-        set_point_color(list_objects_color[m_current_object_index]);
-        cout<<list_objects[m_current_object_index].m_name<<endl;
+        if(is_camera_view)
+        {
+            set_point_color(15);
+            cout<<"Camera"<<endl;
+        }
+        else
+        {
+            set_point_color(list_objects_color[m_current_object_index]);
+            cout<<list_objects[m_current_object_index]->m_name<<endl;
+        }
+
         reset_text_color();
         for(size_t i(0); i<LIGNES; i++)
         {
@@ -650,31 +768,33 @@ struct Environnement
             {
                 set_point_color(display_tab_color[i][j]);
                 cout<<display_tab[i][j];
-                reset_text_color();
+                //tableau_fini+=display_tab[i][j];
+                //cout<<;
+                //reset_text_color();
             }
-            cout<<i<<endl;
+            cout<<i<<"\n"<<endl;
+            //tableau_fini+=(to_string(i)+"\n");
         }
-
+        //cout<<tableau_fini;
     }
 };
 
 int main()
 {
-    Environnement E;
-    E.make_axis(1,15);
+    Environnement E(0,0,0);
 
     Object sphere;
     sphere.make_sphere(10,0.2,"sphere");
 
     Object cube;
-    cube.make_cube(12, 0.2, "cube");
+    cube.make_cube(10, 0.2, "cube");
 
     Object line;
     line.make_line(12,1,"ligne");
-
-    E.add_object(sphere, Point(0,0,0), "rouge");
-    E.add_object(cube, Point(0,0,0), "bleu");
-    E.add_object(line, Point(0,0,0), "jaune");
+    //E.add_object(Camera,Point(0,0,0), "blanc")
+    E.add_object(&sphere, Point(0,0,0), "rouge");
+    E.add_object(&cube, Point(0,0,0), "bleu");
+    E.add_object(&line, Point(0,0,0), "jaune");
     E.display();
     while(true)
     {
@@ -706,84 +826,120 @@ bool key_pressed(Environnement &E)
         E.select_next_object();
     }
 
+    else if(GetKeyState('C') & 0x8000)
+    {
+        if (E.is_camera_view)
+        {
+            E.is_camera_view = false;
+        }
+        else
+        {
+            E.is_camera_view = true;
+        }
+    }
+
     else if(GetKeyState('Q') & 0x8000)
     {
-        E.list_objects[E.m_current_object_index].rotate_x(0.1);
+        if (E.is_camera_view)
+        {
+            E.m_cam.rotate_z(0.1);
+        }
+        else
+        {
+            E.list_objects[E.m_current_object_index]->rotate_x(0.1);
+        }
     }
     else if(GetKeyState('E') & 0x8000)
     {
-        E.list_objects[E.m_current_object_index].rotate_x(-0.1);
+        if (E.is_camera_view)
+        {
+            E.m_cam.rotate_z(-0.1);
+        }
+        else
+        {
+            E.list_objects[E.m_current_object_index]->rotate_x(-0.1);
+        }
     }
     else if(GetKeyState('W') & 0x8000)
     {
-        E.list_objects[E.m_current_object_index].rotate_z(-0.1);
+        if (E.is_camera_view)
+        {
+            E.m_cam.translate({1,0,0});
+        }
+        else
+        {
+            E.list_objects[E.m_current_object_index]->rotate_y(0.1);
+        }
+
     }
     else if(GetKeyState('S') & 0x8000)
     {
-        E.list_objects[E.m_current_object_index].rotate_z(0.1);
+        if (E.is_camera_view)
+        {
+            E.m_cam.translate({1,0,0});
+        }
+        else
+        {
+            E.list_objects[E.m_current_object_index]->rotate_y(-0.1);
+        }
     }
     else if(GetKeyState('A') & 0x8000)//is down
     {
-        E.list_objects[E.m_current_object_index].rotate_y(-0.1);
+        if (E.is_camera_view)
+        {
+            E.m_cam.translate({0,-1,0});
+        }
+        else
+        {
+            E.list_objects[E.m_current_object_index]->rotate_z(-0.1);
+        }
     }
     else if(GetKeyState('D') & 0x8000)
     {
-        E.list_objects[E.m_current_object_index].rotate_y(0.1);
+        if (E.is_camera_view)
+        {
+            E.m_cam.translate({0,1,0});
+        }
+        else
+        {
+            E.list_objects[E.m_current_object_index]->rotate_z(0.1);
+        }
     }
     else if(GetKeyState(VK_UP) & 0x8000)
-    {
-        Point p = Point(0,-1,0);
-        E.move_object(p);
-    }
-    else if(GetKeyState(VK_DOWN) & 0x8000)
-    {
-        Point p = Point(0,1,0);
-        E.move_object(p);
-    }
-    else if(GetKeyState(VK_LEFT) & 0x8000)
-    {
-        Point p = Point(0,0,1);
-        E.move_object(p);
-    }
-    else if(GetKeyState(VK_RIGHT) & 0x8000)
     {
         Point p = Point(0,0,-1);
         E.move_object(p);
     }
+    else if(GetKeyState(VK_DOWN) & 0x8000)
+    {
+        Point p = Point(0,0,1);
+        E.move_object(p);
+    }
+    else if(GetKeyState(VK_LEFT) & 0x8000)
+    {
+        Point p = Point(0,-1,0);
+        E.move_object(p);
+    }
+    else if(GetKeyState(VK_RIGHT) & 0x8000)
+    {
+        Point p = Point(0,1,0);
+        E.move_object(p);
+    }
     else if(GetKeyState('I') & 0x8000)
     {
-        E.m_y_axis -= 1;
-        E.refresh_axis();
+        E.m_z_axis -= 1;
     }
     else if(GetKeyState('K') & 0x8000)
     {
-        E.m_y_axis += 1;
-        E.refresh_axis();
+        E.m_z_axis += 1;
     }
     else if(GetKeyState('J') & 0x8000)
     {
-        E.m_z_axis -= 1;
-        E.refresh_axis();
+        E.m_y_axis -= 1;
     }
     else if(GetKeyState('L') & 0x8000)
     {
-        E.m_z_axis += 1;
-        E.refresh_axis();
-    }
-    else if(GetKeyState('1') & 0x8000)
-    {
-        E.rotate_x(0.2);
-        E.refresh_axis();
-    }
-    else if(GetKeyState('2') & 0x8000)
-    {
-        E.rotate_y(0.2);
-        E.refresh_axis();
-    }
-    else if(GetKeyState('3') & 0x8000)
-    {
-        E.rotate_z(0.2);
-        E.refresh_axis();
+        E.m_y_axis += 1;
     }
     else if(GetKeyState(VK_ESCAPE) & 0x8000)
     {
